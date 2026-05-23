@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Data Dashboard | Dhivyasri Ravi</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f4f6fb; color: #1a1a2e; min-height: 100vh; }
+
+    /* HEADER */
+    header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%); padding: 1.4rem 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .header-left h1 { font-size: 20px; font-weight: 700; background: linear-gradient(135deg, #7F77DD, #D4537E, #EF9F27); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-left p  { font-size: 12px; color: #888; margin-top: 3px; }
+    .author-tag { font-size: 11px; background: rgba(127,119,221,0.15); color: #7F77DD; padding: 4px 14px; border-radius: 999px; border: 1px solid #7F77DD44; }
+
+    /* UPLOAD ZONE */
+    .upload-section { max-width: 860px; margin: 2rem auto; padding: 0 1.5rem; }
+    .upload-zone { border: 2.5px dashed #7F77DD88; border-radius: 16px; padding: 2.5rem 2rem; text-align: center; background: #fff; cursor: pointer; transition: all 0.25s; position: relative; }
+    .upload-zone:hover, .upload-zone.drag-over { border-color: #7F77DD; background: #f0eeff; box-shadow: 0 0 24px rgba(127,119,221,0.12); }
+    .upload-icon { font-size: 44px; margin-bottom: 0.75rem; }
+    .upload-zone h2 { font-size: 17px; font-weight: 600; color: #1a1a2e; margin-bottom: 6px; }
+    .upload-zone p  { font-size: 13px; color: #888; margin-bottom: 1.2rem; }
+    .upload-btn { padding: 10px 28px; background: linear-gradient(135deg, #7F77DD, #D4537E); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    #file-input { display: none; }
+    .sample-hint { margin-top: 14px; font-size: 12px; color: #aaa; }
+    .sample-hint button { background: none; border: none; color: #7F77DD; font-size: 12px; cursor: pointer; text-decoration: underline; font-weight: 600; }
+
+    /* DASHBOARD */
+    #dashboard { display: none; max-width: 1100px; margin: 0 auto; padding: 0 1.5rem 2rem; }
+
+    /* TOP BAR */
+    .dash-topbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 1.25rem; }
+    .file-info { display: flex; align-items: center; gap: 10px; }
+    .file-badge { font-size: 12px; background: #EEEDFE; color: #3C3489; padding: 5px 14px; border-radius: 999px; font-weight: 600; border: 1px solid #AFA9EC; }
+    .reset-btn { padding: 7px 16px; background: #fff; border: 1px solid #ddd; border-radius: 8px; font-size: 12px; color: #666; cursor: pointer; font-weight: 500; }
+    .reset-btn:hover { background: #FBEAF0; border-color: #D4537E; color: #D4537E; }
+
+    /* STAT CARDS */
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 1.4rem; }
+    .stat-card { background: #fff; border-radius: 12px; padding: 1rem 1.2rem; border: 1px solid #e8e6f8; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .stat-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; font-weight: 600; }
+    .stat-value { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+    .stat-sub   { font-size: 11px; color: #aaa; margin-top: 3px; }
+    .stat-card.purple { border-top: 3px solid #7F77DD; }
+    .stat-card.pink   { border-top: 3px solid #D4537E; }
+    .stat-card.amber  { border-top: 3px solid #EF9F27; }
+    .stat-card.teal   { border-top: 3px solid #1D9E75; }
+
+    /* AI INSIGHTS */
+    .insights-box { background: #fff; border-radius: 14px; padding: 1.3rem 1.5rem; border: 1px solid #e8e6f8; margin-bottom: 1.4rem; box-shadow: 0 2px 10px rgba(127,119,221,0.06); }
+    .insights-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+    .insights-header h2 { font-size: 15px; font-weight: 700; color: #1a1a2e; }
+    .ai-badge { font-size: 11px; background: linear-gradient(135deg, #7F77DD, #D4537E); color: #fff; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+    .insights-content { font-size: 13px; color: #444; line-height: 1.85; }
+    .insights-content.loading { color: #aaa; font-style: italic; }
+    .insight-point { display: flex; gap: 8px; margin-bottom: 7px; align-items: flex-start; }
+    .insight-bullet { color: #7F77DD; font-size: 16px; line-height: 1.4; flex-shrink: 0; }
+
+    /* CHART CONTROLS */
+    .chart-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; align-items: center; }
+    .chart-controls label { font-size: 12px; color: #888; font-weight: 600; }
+    .ctrl-select { font-size: 12px; padding: 6px 10px; border-radius: 8px; border: 1px solid #ddd; background: #fff; color: #333; cursor: pointer; outline: none; }
+    .ctrl-select:focus { border-color: #7F77DD; }
+    .chart-type-btns { display: flex; gap: 5px; }
+    .ctype-btn { padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; border: 1px solid #ddd; background: #fff; color: #888; cursor: pointer; transition: all 0.2s; }
+    .ctype-btn.active { background: linear-gradient(135deg, #7F77DD, #D4537E); color: #fff; border-color: transparent; }
+
+    /* CHARTS GRID */
+    .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 1.4rem; }
+    .chart-card { background: #fff; border-radius: 14px; padding: 1.2rem; border: 1px solid #e8e6f8; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .chart-card h3 { font-size: 13px; font-weight: 700; color: #555; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .chart-wrapper { position: relative; height: 220px; }
+
+    /* DATA TABLE */
+    .table-section { background: #fff; border-radius: 14px; padding: 1.2rem; border: 1px solid #e8e6f8; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .table-section h3 { font-size: 13px; font-weight: 700; color: #555; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.04em; display: flex; justify-content: space-between; align-items: center; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead th { background: #f0eeff; color: #3C3489; font-weight: 700; padding: 9px 12px; text-align: left; position: sticky; top: 0; }
+    tbody tr { border-bottom: 1px solid #f5f5f5; transition: background 0.15s; }
+    tbody tr:hover { background: #faf9ff; }
+    tbody td { padding: 8px 12px; color: #444; }
+    .table-note { font-size: 11px; color: #aaa; font-weight: 400; }
+
+    /* COLUMN SELECTOR */
+    .col-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 1rem; }
+    .col-pill { font-size: 11px; padding: 4px 12px; border-radius: 999px; border: 1px solid #ddd; background: #fff; color: #666; cursor: pointer; transition: all 0.2s; font-weight: 500; }
+    .col-pill.active { background: linear-gradient(135deg, #7F77DD, #D4537E); color: #fff; border-color: transparent; }
+
+    /* LOADING */
+    .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; align-items: center; justify-content: center; }
+    .loading-overlay.show { display: flex; }
+    .loading-box { background: #fff; border-radius: 16px; padding: 2rem 2.5rem; text-align: center; }
+    .spinner { width: 40px; height: 40px; border: 4px solid #f0eeff; border-top-color: #7F77DD; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 1rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-box p { font-size: 14px; color: #555; font-weight: 500; }
+
+    .no-data { color: #aaa; font-size: 13px; font-style: italic; text-align: center; padding: 1rem; }
+
+    footer { text-align: center; padding: 1.5rem; font-size: 12px; color: #aaa; border-top: 1px solid #eee; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <p id="loading-msg">Analysing your data with AI...</p>
+  </div>
+</div>
+
+<header>
+  <div class="header-left">
+    <h1>📊 AI Data Dashboard</h1>
+    <p>Upload any CSV — AI analyses it and generates live charts + insights</p>
+  </div>
+  <span class="author-tag">Built by Dhivyasri Ravi</span>
+</header>
+
+<!-- UPLOAD -->
+<div class="upload-section" id="upload-section">
+  <div class="upload-zone" id="upload-zone"
+       ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)"
+       onclick="document.getElementById('file-input').click()">
+    <div class="upload-icon">📂</div>
+    <h2>Drop your CSV file here</h2>
+    <p>or click to browse — works with any CSV: sales, marks, weather, finance, anything!</p>
+    <button class="upload-btn" onclick="event.stopPropagation(); document.getElementById('file-input').click()">Choose CSV File</button>
+    <input type="file" id="file-input" accept=".csv" onchange="handleFile(event)"/>
+    <div class="sample-hint">
+      Don't have a CSV? <button onclick="event.stopPropagation(); loadSampleData()">Load sample sales data</button>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="dash-topbar">
+    <div class="file-info">
+      <span class="file-badge" id="file-badge">📄 file.csv</span>
+    </div>
+    <button class="reset-btn" onclick="resetDashboard()">↩ Upload New File</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="stats-row"></div>
+
+  <!-- AI Insights -->
+  <div class="insights-box">
+    <div class="insights-header">
+      <h2>🤖 AI Insights</h2>
+      <span class="ai-badge">Powered by Claude</span>
+    </div>
+    <div class="insights-content loading" id="insights-content">Analysing your data, please wait...</div>
+  </div>
+
+  <!-- Chart Controls -->
+  <div class="chart-controls">
+    <label>X Axis:</label>
+    <select class="ctrl-select" id="x-col" onchange="renderCharts()"></select>
+    <label>Y Axis:</label>
+    <select class="ctrl-select" id="y-col" onchange="renderCharts()"></select>
+    <label>Chart Type:</label>
+    <div class="chart-type-btns">
+      <button class="ctype-btn active" onclick="setChartType('bar',this)">Bar</button>
+      <button class="ctype-btn" onclick="setChartType('line',this)">Line</button>
+      <button class="ctype-btn" onclick="setChartType('pie',this)">Pie</button>
+      <button class="ctype-btn" onclick="setChartType('doughnut',this)">Donut</button>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3 id="main-chart-title">Main Chart</h3>
+      <div class="chart-wrapper"><canvas id="main-chart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Column Distribution</h3>
+      <div class="chart-wrapper"><canvas id="dist-chart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Data Table -->
+  <div class="table-section">
+    <h3>
+      Raw Data Preview
+      <span class="table-note" id="table-note"></span>
+    </h3>
+    <div class="table-wrap" id="table-wrap"></div>
+  </div>
+</div>
+
+<footer>Built with Chart.js, PapaParse & Claude API &nbsp;·&nbsp; Dhivyasri Ravi &copy; 2026</footer>
+
+<script>
+// ── CONFIG ──
+// PASTE YOUR ANTHROPIC API KEY BELOW
+const API_KEY = 'YOUR_ANTHROPIC_API_KEY_HERE';
+
+let parsedData   = [];
+let headers      = [];
+let currentChart = null;
+let distChart    = null;
+let chartType    = 'bar';
+let fileName     = '';
+
+// ── COLOURS ──
+const PALETTE = [
+  'rgba(127,119,221,0.85)','rgba(212,83,126,0.85)','rgba(239,159,39,0.85)',
+  'rgba(29,158,117,0.85)','rgba(83,74,183,0.85)','rgba(239,99,39,0.85)',
+  'rgba(67,190,200,0.85)','rgba(180,80,180,0.85)','rgba(100,200,100,0.85)',
+  'rgba(230,150,50,0.85)'
+];
+
+// ── DRAG & DROP ──
+function onDragOver(e)  { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag-over'); }
+function onDragLeave()  { document.getElementById('upload-zone').classList.remove('drag-over'); }
+function onDrop(e)      { e.preventDefault(); onDragLeave(); if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); }
+function handleFile(e)  { if (e.target.files[0]) processFile(e.target.files[0]); }
+
+// ── PROCESS FILE ──
+function processFile(file) {
+  fileName = file.name;
+  showLoading('Parsing CSV...');
+  Papa.parse(file, {
+    header: true, skipEmptyLines: true,
+    complete: result => { parsedData = result.data; headers = result.meta.fields || []; initDashboard(); },
+    error:    ()     => { hideLoading(); alert('Could not parse CSV. Please check the file.'); }
+  });
+}
+
+// ── SAMPLE DATA ──
+function loadSampleData() {
+  fileName = 'sample_sales_data.csv';
+  const csv = `Month,Sales,Expenses,Profit,Units,Region
+January,52000,31000,21000,420,North
+February,47000,28500,18500,380,South
+March,61000,35000,26000,510,North
+April,58000,33000,25000,475,East
+May,73000,40000,33000,610,West
+June,69000,38500,30500,570,South
+July,82000,44000,38000,680,North
+August,78000,42000,36000,640,East
+September,65000,37000,28000,530,West
+October,71000,39500,31500,590,North
+November,88000,47000,41000,730,South
+December,95000,52000,43000,790,East`;
+  showLoading('Loading sample data...');
+  Papa.parse(csv, {
+    header: true, skipEmptyLines: true,
+    complete: result => { parsedData = result.data; headers = result.meta.fields || []; initDashboard(); }
+  });
+}
+
+// ── INIT DASHBOARD ──
+function initDashboard() {
+  document.getElementById('upload-section').style.display = 'none';
+  document.getElementById('dashboard').style.display      = 'block';
+  document.getElementById('file-badge').textContent       = '📄 ' + fileName;
+
+  populateSelects();
+  renderStats();
+  renderCharts();
+  renderTable();
+  hideLoading();
+  fetchInsights();
+}
+
+// ── SELECTS ──
+function populateSelects() {
+  const xSel = document.getElementById('x-col');
+  const ySel = document.getElementById('y-col');
+  xSel.innerHTML = ySel.innerHTML = '';
+  headers.forEach((h, i) => {
+    xSel.innerHTML += `<option value="${h}" ${i===0?'selected':''}>${h}</option>`;
+    ySel.innerHTML += `<option value="${h}" ${i===1?'selected':''}>${h}</option>`;
+  });
+}
+
+// ── STATS ──
+function renderStats() {
+  const numCols = headers.filter(h => isNumeric(h));
+  const row     = document.getElementById('stats-row');
+  const colors  = ['purple','pink','amber','teal'];
+  const icons   = ['📋','🔢','📈','🗂️'];
+
+  const cards = [
+    { label:'Total Rows',    value: parsedData.length,                       sub: `${headers.length} columns` },
+    { label:'Numeric Cols',  value: numCols.length,                          sub: 'auto-detected' },
+    { label:'Top Numeric',   value: numCols[0] ? colMax(numCols[0]) : 'N/A', sub: numCols[0] ? `max in ${numCols[0]}` : '' },
+    { label:'Avg (first)',   value: numCols[0] ? colAvg(numCols[0]) : 'N/A', sub: numCols[0] || '' },
+  ];
+
+  row.innerHTML = cards.map((c, i) => `
+    <div class="stat-card ${colors[i]}">
+      <div class="stat-label">${icons[i]} ${c.label}</div>
+      <div class="stat-value">${c.value}</div>
+      <div class="stat-sub">${c.sub}</div>
+    </div>`).join('');
+}
+
+// ── CHART TYPE ──
+function setChartType(type, btn) {
+  chartType = type;
+  document.querySelectorAll('.ctype-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCharts();
+}
+
+// ── RENDER CHARTS ──
+function renderCharts() {
+  const xCol = document.getElementById('x-col').value;
+  const yCol = document.getElementById('y-col').value;
+  if (!xCol || !yCol) return;
+
+  const labels = parsedData.slice(0, 20).map(r => r[xCol] || '');
+  const values = parsedData.slice(0, 20).map(r => parseFloat(r[yCol]) || 0);
+
+  document.getElementById('main-chart-title').textContent = `${yCol} by ${xCol}`;
+
+  if (currentChart) currentChart.destroy();
+  currentChart = new Chart(document.getElementById('main-chart'), {
+    type: chartType,
+    data: {
+      labels,
+      datasets: [{
+        label: yCol,
+        data: values,
+        backgroundColor: chartType === 'line' ? 'rgba(127,119,221,0.15)' : PALETTE,
+        borderColor:     chartType === 'line' ? '#7F77DD' : PALETTE.map(c => c.replace('0.85','1')),
+        borderWidth: chartType === 'line' ? 2.5 : 1.5,
+        fill: chartType === 'line',
+        tension: 0.4,
+        pointBackgroundColor: '#7F77DD',
+        pointRadius: chartType === 'line' ? 4 : 0,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: chartType === 'pie' || chartType === 'doughnut' } },
+      scales: (chartType === 'pie' || chartType === 'doughnut') ? {} : {
+        x: { ticks: { font: { size: 10 }, maxRotation: 45 } },
+        y: { ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+
+  // Distribution chart (numeric columns)
+  const numCols = headers.filter(h => isNumeric(h)).slice(0, 6);
+  const avgVals = numCols.map(h => colAvg(h));
+  if (distChart) distChart.destroy();
+  distChart = new Chart(document.getElementById('dist-chart'), {
+    type: 'bar',
+    data: {
+      labels: numCols,
+      datasets: [{
+        label: 'Average Value',
+        data: avgVals,
+        backgroundColor: PALETTE,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { font: { size: 10 } } }, y: { ticks: { font: { size: 10 } } } }
+    }
+  });
+}
+
+// ── TABLE ──
+function renderTable() {
+  const preview = parsedData.slice(0, 10);
+  document.getElementById('table-note').textContent = `Showing ${preview.length} of ${parsedData.length} rows`;
+  const wrap = document.getElementById('table-wrap');
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${preview.map(row =>
+        `<tr>${headers.map(h => `<td>${row[h] ?? ''}</td>`).join('')}</tr>`
+      ).join('')}</tbody>
+    </table>`;
+}
+
+// ── AI INSIGHTS ──
+async function fetchInsights() {
+  const el = document.getElementById('insights-content');
+  el.className = 'insights-content loading';
+  el.textContent = 'Claude is analysing your data...';
+
+  // Build a compact summary for Claude
+  const numCols  = headers.filter(h => isNumeric(h));
+  const summary  = {
+    fileName,
+    rows:    parsedData.length,
+    columns: headers,
+    numericColumns: numCols.map(h => ({
+      name: h,
+      min:  colMin(h),
+      max:  colMax(h),
+      avg:  colAvg(h),
+      sum:  colSum(h)
+    })),
+    sampleRows: parsedData.slice(0, 5)
+  };
+
+  const prompt = `You are a data analyst. Analyse this CSV dataset and give 5 clear, specific, actionable insights.
+
+Dataset summary:
+${JSON.stringify(summary, null, 2)}
+
+Rules:
+- Give exactly 5 bullet insights
+- Each insight must be specific with numbers from the data
+- Keep each point to 1-2 sentences
+- Be direct and professional
+- Format: start each line with "•"
+- No intro text, just the 5 bullet points`;
+
+  try {
+    const res  = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 600,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data   = await res.json();
+    const text   = data.content?.map(c => c.text || '').join('') || '';
+    const points = text.split('\n').filter(l => l.trim().startsWith('•'));
+
+    if (points.length) {
+      el.className  = 'insights-content';
+      el.innerHTML  = points.map(p =>
+        `<div class="insight-point"><span class="insight-bullet">•</span><span>${p.replace('•','').trim()}</span></div>`
+      ).join('');
+    } else {
+      el.className  = 'insights-content';
+      el.innerHTML  = `<div class="insight-point"><span class="insight-bullet">•</span><span>${text}</span></div>`;
+    }
+  } catch (e) {
+    el.className  = 'insights-content';
+    el.innerHTML  = `<div class="insight-point"><span class="insight-bullet" style="color:#D4537E">⚠</span>
+      <span>Could not load AI insights. Please add your Anthropic API key in the code (line: const API_KEY = ...). Charts and stats above work without the API key!</span></div>`;
+  }
+}
+
+// ── RESET ──
+function resetDashboard() {
+  parsedData = []; headers = []; fileName = '';
+  if (currentChart) { currentChart.destroy(); currentChart = null; }
+  if (distChart)    { distChart.destroy();    distChart    = null; }
+  document.getElementById('dashboard').style.display      = 'none';
+  document.getElementById('upload-section').style.display = 'block';
+  document.getElementById('file-input').value = '';
+}
+
+// ── HELPERS ──
+function isNumeric(col) { return parsedData.slice(0,5).some(r => r[col] && !isNaN(parseFloat(r[col]))); }
+function colVals(col)   { return parsedData.map(r => parseFloat(r[col])).filter(v => !isNaN(v)); }
+function colMax(col)    { const v = colVals(col); return v.length ? Math.max(...v).toLocaleString() : 'N/A'; }
+function colMin(col)    { const v = colVals(col); return v.length ? Math.min(...v).toLocaleString() : 'N/A'; }
+function colSum(col)    { return colVals(col).reduce((a,b) => a+b, 0); }
+function colAvg(col)    { const v = colVals(col); return v.length ? Math.round(colSum(col)/v.length).toLocaleString() : 'N/A'; }
+
+function showLoading(msg) {
+  document.getElementById('loading-msg').textContent      = msg || 'Loading...';
+  document.getElementById('loading-overlay').classList.add('show');
+}
+function hideLoading() { document.getElementById('loading-overlay').classList.remove('show'); }
+</script>
+</body>
+</html>
